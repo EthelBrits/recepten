@@ -280,7 +280,8 @@
                     <option value="vlees">Vlees</option>
                     <option value="vis">Vis</option>
                     <option value="vegetarisch">Vegetarisch</option>
-                    
+                    <option value="suikervrij">Zonder toegevoegde suiker</option>
+                    <option value="low-carb">Low-carb</option>
                 </select>
             </div>
             
@@ -346,6 +347,12 @@
                         
                         <input type="radio" id="diet-vis" name="diet" value="vis">
                         <label for="diet-vis">Vis</label>
+
+                        <input type="radio" id="diet-suikervrij" name="diet" value="suikervrij">
+                        <label for="diet-vlees">Suikervrij</label>
+                        
+                        <input type="radio" id="diet-low-carb" name="diet" value="low-carb">
+                        <label for="diet-vis">Low-carb</label>
                     </div>
                 </div>
                 
@@ -818,6 +825,8 @@
                 'vegetarisch': 'Vegetarisch',
                 'vlees': 'Met vlees',
                 'vis': 'Met vis'
+                'suikervrij': 'Zonder toegevoegde suiker',
+                'low-carb': 'Low-carb'
             };
             return labels[diet] || diet;
         }
