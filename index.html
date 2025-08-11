@@ -218,6 +218,9 @@
         margin-top: 25px;
         flex-wrap: wrap;
     }
+    .hidden {
+        display: none;
+    }
 @media print {
     body * {
         visibility: hidden;
@@ -245,7 +248,9 @@
         border: none;
         position: static;
     }
-    /* Alert popups */
+}
+
+/* Alert popups */
 .alert-overlay {
     position: fixed;
     top: 0;
@@ -273,8 +278,6 @@
     gap: 10px;
     justify-content: center;
 }
-}
-    }
 </style>
 </head>
 <body>
@@ -282,9 +285,9 @@
         <h1>Mijn Recepten Collectie</h1>
         
         <div class="tabs">
-<div class="tab active-tab" onclick="openTab('recipes', event)">Recepten</div>
-<div class="tab" onclick="openTab('grocery', event)">Boodschappenlijst</div>
-<div class="tab" onclick="openTab('add', event)">Recept toevoegen</div>
+            <div class="tab active-tab" onclick="openTab('recipes', event)">Recepten</div>
+            <div class="tab" onclick="openTab('grocery', event)">Boodschappenlijst</div>
+            <div class="tab" onclick="openTab('add', event)">Recept toevoegen</div>
         </div>
         
         <div id="recipes" class="tab-content active">
@@ -320,6 +323,7 @@
             
             <div class="recipe-list" id="recipe-container">
                 <!-- Recepten worden hier dynamisch ingeladen -->
+                <p>Recepten aan het laden...</p>
             </div>
         </div>
         
@@ -382,10 +386,10 @@
                         <label for="diet-vis">Vis</label>
 
                         <input type="radio" id="diet-suikervrij" name="diet" value="suikervrij">
-                        <label for="diet-vlees">Suikervrij</label>
+                        <label for="diet-suikervrij">Suikervrij</label>
                         
                         <input type="radio" id="diet-low-carb" name="diet" value="low-carb">
-                        <label for="diet-vis">Low-carb</label>
+                        <label for="diet-low-carb">Low-carb</label>
                     </div>
                 </div>
                 
@@ -430,442 +434,522 @@
         </div>
     </div>
 
-    <script>
-        // Basis recepten database
-        let recipes = [
-            {
-                id: 1,
-                name: "Pasta Pesto",
-                category: "hoofdgerecht-veg",
-                diet: "vegetarisch",
-                ingredients: "250g pasta\n2 el pesto\n50g pijnboompitten\n100g cherrytomaatjes\n50g rucola\nParmezaanse kaas",
-                instructions: "1. Kook de pasta volgens de aanwijzingen op de verpakking.\n2. Rooster de pijnboompitten in een droge pan.\n3. Meng de pasta met pesto, tomaatjes, rucola en pijnboompitten.\n4. Bestrooi met Parmezaanse kaas.",
-                image: "https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60"
-            },
-            {
-                id: 2,
-                name: "Chocolademousse",
-                category: "dessert",
-                diet: "vegetarisch",
-                ingredients: "200g pure chocolade\n4 eieren\n50g suiker\nSnuf zout\nOptioneel: slagroom",
-                instructions: "1. Smelt de chocolade au bain-marie.\n2. Splits de eieren. Klop het eiwit met een snuf zout stijf.\n3. Meng de eidooiers met de suiker en roer door de gesmolten chocolade.\n4. Spatel het eiwit door het chocolademengsel.\n5. Verdeel over kommen en zet minimaal 2 uur in de koelkast.",
-                image: "https://images.unsplash.com/photo-1563805042-7684c019e1cb?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60"
+    <div id="alert-overlay" class="alert-overlay" style="display: none;">
+        <div class="alert-box">
+            <p id="alert-message">Bericht hier</p>
+            <div class="alert-buttons">
+                <button onclick="hideAlert()">OK</button>
+            </div>
+        </div>
+    </div>
+
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+
+<script>
+  // Firebase configuratie
+  const firebaseConfig = {
+      apiKey: "AIzaSyAylOAmPn6XcuyHCMITI6BS-KAwz0IEiek",
+      authDomain: "beste-recept-ter-wereld-voor.firebaseapp.com",
+      projectId: "beste-recept-ter-wereld-voor",
+      storageBucket: "beste-recept-ter-wereld-voor.appspot.com",
+      messagingSenderId: "1001533058331",
+      appId: "1:1001533058331:web:87f3f1a3c44c4ba3dd37be"
+  };
+
+  // Initialize Firebase
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+</script>
+
+<script>
+    // Globale variabelen
+    let recipes = [];
+    let groceryList = [];
+    let currentlyEditing = null;
+    let currentUser = null;
+
+    // Laad de pagina
+    document.addEventListener('DOMContentLoaded', function() {
+        initAuth();
+    });
+
+    // Initialiseer authenticatie
+    function initAuth() {
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            if (user) {
+                // Gebruiker is ingelogd
+                init();
+            } else {
+                // Gebruiker is niet ingelogd, toon login scherm
+                showAlert('Je moet inloggen om recepten te beheren. Log in met Google.');
+                // Hier zou je een login knop kunnen toevoegen
+                // Voor nu gaan we door zonder authenticatie voor demo
+                init();
             }
-        ];
-
-        // Boodschappenlijst
-        let groceryList = [];
-        let currentlyEditing = null;
-
-        // Laad de pagina
-        document.addEventListener('DOMContentLoaded', function() {
-            init();
         });
+    }
 
-        // Initialisatie
-        function init() {
-            loadSavedRecipes();
-            loadSavedGroceryList();
-            loadRecipes();
-            loadGroceryList();
-        }
+    // Initialisatie
+    function init() {
+        loadSavedGroceryList();
+        loadRecipesFromFirebase();
+    }
 
-        // Tab navigatie
-        function openTab(tabName, event) {
-            const tabs = document.querySelectorAll('.tab-content');
-            tabs.forEach(tab => tab.classList.remove('active'));
-            
-            const tabButtons = document.querySelectorAll('.tab');
-            tabButtons.forEach(button => button.classList.remove('active-tab'));
-            
-            document.getElementById(tabName).classList.add('active');
-            event.currentTarget.classList.add('active-tab');
-        }
-
-        // Laad recepten in de UI
-        function loadRecipes() {
-            const container = document.getElementById('recipe-container');
-            container.innerHTML = '';
-            
-            if (recipes.length === 0) {
-                container.innerHTML = '<p>Nog geen recepten toegevoegd. Voeg je eerste recept toe!</p>';
-                return;
-            }
-            
-            recipes.forEach(recipe => {
-                const card = document.createElement('div');
-                card.className = 'recipe-card';
-                card.onclick = () => openRecipeModal(recipe.id);
-                
-                let html = '';
-                if (recipe.image) {
-                    html += `<img src="${recipe.image}" alt="${recipe.name}">`;
-                }
-                html += `<h3 class="recipe-title">${recipe.name}</h3>`;
-                
-                // Labels voor categorie en dieet
-                html += `<div class="recipe-labels">`;
-                html += `<span class="label">${getCategoryLabel(recipe.category)}</span>`;
-                html += `<span class="label">${getDietLabel(recipe.diet)}</span>`;
-                html += `</div>`;
-                
-                card.innerHTML = html;
-                container.appendChild(card);
-            });
-        }
-
-        // Filter recepten op zoekterm, categorie en dieet
-        function filterRecipes() {
-            const searchTerm = document.getElementById('search').value.toLowerCase();
-            const category = document.getElementById('filter-category').value;
-            const diet = document.getElementById('filter-diet').value;
-            
-            const filtered = recipes.filter(recipe => {
-                const matchesSearch = recipe.name.toLowerCase().includes(searchTerm) || 
-                                    recipe.ingredients.toLowerCase().includes(searchTerm) || 
-                                    recipe.instructions.toLowerCase().includes(searchTerm);
-                const matchesCategory = !category || recipe.category === category;
-                const matchesDiet = !diet || recipe.diet === diet;
-                
-                return matchesSearch && matchesCategory && matchesDiet;
-            });
-            
-            displayFilteredRecipes(filtered);
-        }
-
-        // Toon gefilterde recepten
-        function displayFilteredRecipes(filteredRecipes) {
-            const container = document.getElementById('recipe-container');
-            container.innerHTML = '';
-            
-            if (filteredRecipes.length === 0) {
-                container.innerHTML = '<p>Geen recepten gevonden die aan je criteria voldoen.</p>';
-                return;
-            }
-            
-            filteredRecipes.forEach(recipe => {
-                const card = document.createElement('div');
-                card.className = 'recipe-card';
-                card.onclick = () => openRecipeModal(recipe.id);
-                
-                let html = '';
-                if (recipe.image) {
-                    html += `<img src="${recipe.image}" alt="${recipe.name}">`;
-                }
-                html += `<h3 class="recipe-title">${recipe.name}</h3>`;
-                
-                // Labels voor categorie en dieet
-                html += `<div class="recipe-labels">`;
-                html += `<span class="label">${getCategoryLabel(recipe.category)}</span>`;
-                html += `<span class="label">${getDietLabel(recipe.diet)}</span>`;
-                html += `</div>`;
-                
-                card.innerHTML = html;
-                container.appendChild(card);
-            });
-        }
-
-        // Open recept in modal
-        function openRecipeModal(recipeId) {
-            const recipe = recipes.find(r => r.id === recipeId);
-            if (!recipe) return;
-            
-            document.getElementById('modal-title').textContent = recipe.name;
-            document.getElementById('modal-title').setAttribute('data-id', recipe.id);
-            
-            // Labels
-            const labelsContainer = document.getElementById('modal-labels');
-            labelsContainer.innerHTML = '';
-            
-            const categoryLabel = document.createElement('span');
-            categoryLabel.className = 'label';
-            categoryLabel.textContent = getCategoryLabel(recipe.category);
-            labelsContainer.appendChild(categoryLabel);
-            
-            const dietLabel = document.createElement('span');
-            dietLabel.className = 'label';
-            dietLabel.textContent = getDietLabel(recipe.diet);
-            labelsContainer.appendChild(dietLabel);
-            
-            // Afbeelding
-            const img = document.getElementById('modal-image');
-            if (recipe.image) {
-                img.src = recipe.image;
-                img.style.display = 'block';
-            } else {
-                img.style.display = 'none';
-            }
-            
-            // Ingrediënten
-            const ingredientsList = document.getElementById('modal-ingredients');
-            ingredientsList.innerHTML = '';
-            const ingredients = recipe.ingredients.split('\n');
-            ingredients.forEach(ing => {
-                if (ing.trim()) {
-                    const li = document.createElement('li');
-                    li.textContent = ing;
-                    ingredientsList.appendChild(li);
-                }
-            });
-            
-            // Bereidingswijze
-            document.getElementById('modal-instructions').innerHTML = recipe.instructions.replace(/\n/g, '<br>');
-            
-            // Toon modal
-            document.getElementById('recipe-modal').style.display = 'flex';
-        }
-
-        // Sluit modal
-        function closeModal() {
-            document.getElementById('recipe-modal').style.display = 'none';
-        }
-
-        // Print recept
-        function printRecipe() {
-            const printContent = document.getElementById('recipe-print-content').innerHTML;
-            const originalContent = document.body.innerHTML;
-            
-            document.body.innerHTML = printContent;
-            window.print();
-            document.body.innerHTML = originalContent;
-            loadRecipes();
-            loadGroceryList();
-        }
-
-        // Print boodschappenlijst
-        function printGroceryList() {
-            window.print();
-        }
-
-        // Verwijder recept
-        function deleteRecipe() {
-            const recipeId = parseInt(document.getElementById('modal-title').getAttribute('data-id'));
-            if (confirm('Weet je zeker dat je dit recept wilt verwijderen?')) {
-                recipes = recipes.filter(recipe => recipe.id !== recipeId);
-                saveRecipes();
-                loadRecipes();
-                closeModal();
-            }
-        }
-
-        // Bewerk recept
-        function editRecipe() {
-            const recipeId = parseInt(document.getElementById('modal-title').getAttribute('data-id'));
-            currentlyEditing = recipeId;
-            const recipe = recipes.find(r => r.id === recipeId);
-            
-            // Vul formulier in
-            document.getElementById('recipe-name').value = recipe.name;
-            document.getElementById('recipe-category').value = recipe.category;
-            document.querySelector(`input[name="diet"][value="${recipe.diet}"]`).checked = true;
-            document.getElementById('recipe-ingredients').value = recipe.ingredients;
-            document.getElementById('recipe-instructions').value = recipe.instructions;
-            document.getElementById('recipe-image').value = recipe.image || '';
-            
-            // Pas UI aan voor bewerken
-            document.getElementById('form-title').textContent = 'Recept bewerken';
-            document.getElementById('save-button').textContent = 'Wijzigingen opslaan';
-            document.getElementById('cancel-edit').classList.remove('hidden');
-            
-            closeModal();
-            openTab('add');
-        }
-
-        // Annuleer bewerken
-        function cancelEdit() {
-            currentlyEditing = null;
-            document.getElementById('recipe-form').reset();
-            document.getElementById('form-title').textContent = 'Nieuw recept toevoegen';
-            document.getElementById('save-button').textContent = 'Recept opslaan';
-            document.getElementById('cancel-edit').classList.add('hidden');
-            openTab('recipes');
-        }
-
-        // Sla recept op (nieuw of bewerkt)
-        function saveRecipe() {
-            const name = document.getElementById('recipe-name').value.trim();
-            const category = document.getElementById('recipe-category').value;
-            const diet = document.querySelector('input[name="diet"]:checked').value;
-            const ingredients = document.getElementById('recipe-ingredients').value.trim();
-            const instructions = document.getElementById('recipe-instructions').value.trim();
-            const image = document.getElementById('recipe-image').value.trim();
-            
-            if (!name || !ingredients || !instructions) {
-                alert('Vul alle verplichte velden in');
-                return;
-            }
-            
-            if (currentlyEditing) {
-                // Bestaand recept bijwerken
-                const index = recipes.findIndex(r => r.id === currentlyEditing);
-                recipes[index] = {
-                    id: currentlyEditing,
-                    name,
-                    category,
-                    diet,
-                    ingredients,
-                    instructions,
-                    image: image || null
-                };
-            } else {
-                // Nieuw recept toevoegen
-                const newRecipe = {
-                    id: recipes.length > 0 ? Math.max(...recipes.map(r => r.id)) + 1 : 1,
-                    name,
-                    category,
-                    diet,
-                    ingredients,
-                    instructions,
-                    image: image || null
-                };
-                recipes.push(newRecipe);
-            }
-            
-            saveRecipes();
-            loadRecipes();
-            cancelEdit();
-        }
-
-        // Voeg ingrediënten toe aan boodschappenlijst
-        function addToGroceryList() {
-            const recipeId = parseInt(document.getElementById('modal-title').getAttribute('data-id'));
-            const recipe = recipes.find(r => r.id === recipeId);
-            if (!recipe) return;
-            
-            const ingredients = recipe.ingredients.split('\n');
-            ingredients.forEach(ing => {
-                if (ing.trim() && !groceryList.includes(ing.trim())) {
-                    groceryList.push(ing.trim());
-                }
-            });
-            
-            saveGroceryList();
-            loadGroceryList();
-            alert('Ingrediënten zijn toegevoegd aan je boodschappenlijst!');
-        }
-
-        // Voeg handmatig item toe aan boodschappenlijst
-        function addGroceryItem() {
-            const input = document.getElementById('new-grocery-item');
-            const item = input.value.trim();
-            
-            if (item && !groceryList.includes(item)) {
-                groceryList.push(item);
-                input.value = '';
-                saveGroceryList();
-                loadGroceryList();
-            }
-        }
-
-        // Laad boodschappenlijst in UI
-        function loadGroceryList() {
-            const list = document.getElementById('grocery-items');
-            list.innerHTML = '';
-            
-            groceryList.forEach((item, index) => {
-                const li = document.createElement('li');
-                li.innerHTML = `${item} <span onclick="removeGroceryItem(${index})" style="cursor:pointer;color:red;">&times;</span>`;
-                list.appendChild(li);
-            });
-        }
-
-        // Verwijder item van boodschappenlijst
-        function removeGroceryItem(index) {
-            groceryList.splice(index, 1);
-            saveGroceryList();
-            loadGroceryList();
-        }
-
-        // Maak boodschappenlijst leeg
-        function clearGroceryList() {
-            if (confirm('Weet je zeker dat je de hele boodschappenlijst wilt leegmaken?')) {
-                groceryList = [];
-                saveGroceryList();
-                loadGroceryList();
-            }
-        }
-
-        // Genereer boodschappenlijst van geselecteerde recepten
-        function generateGroceryList() {
-            if (confirm('Wil je ingrediënten van alle recepten toevoegen aan de boodschappenlijst?')) {
-                recipes.forEach(recipe => {
-                    const ingredients = recipe.ingredients.split('\n');
-                    ingredients.forEach(ing => {
-                        if (ing.trim() && !groceryList.includes(ing.trim())) {
-                            groceryList.push(ing.trim());
-                        }
-                    });
-                });
-                
-                saveGroceryList();
-                loadGroceryList();
-            }
-        }
-
-        // Sla recepten op in localStorage
-        function saveRecipes() {
-            localStorage.setItem('recipes', JSON.stringify(recipes));
-        }
-
-        // Sla boodschappenlijst op in localStorage
-        function saveGroceryList() {
-            localStorage.setItem('groceryList', JSON.stringify(groceryList));
-        }
-
-        // Laad recepten uit localStorage
-        function loadSavedRecipes() {
-            const saved = localStorage.getItem('recipes');
-            if (saved) {
-                recipes = JSON.parse(saved);
-            }
-        }
-
-        // Laad boodschappenlijst uit localStorage
-        function loadSavedGroceryList() {
-            const saved = localStorage.getItem('groceryList');
-            if (saved) {
-                groceryList = JSON.parse(saved);
-            }
-        }
-
+    // Tab navigatie
+    function openTab(tabName, event) {
+        const tabs = document.querySelectorAll('.tab-content');
+        tabs.forEach(tab => tab.classList.remove('active'));
         
+        const tabButtons = document.querySelectorAll('.tab');
+        tabButtons.forEach(button => button.classList.remove('active-tab'));
+        
+        document.getElementById(tabName).classList.add('active');
+        event.currentTarget.classList.add('active-tab');
+    }
 
-        // Helper functies voor labels
-        function getCategoryLabel(category) {
-            const labels = {
-                'aperitief': 'Aperitief & hapjes',
-                'cocktails': 'Cocktails & tapjes',
-                'BBQ': 'BBQ',
-                'salade & lichte lunch': 'Salade & lichte lunch',
-                'soep': 'Soep',
-                'pasta & pizza': 'Pasta & pizza',
-                'stoof': 'Curry, tajine & stoofschotels',
-                'wrap & burger': 'Wraps & burgers',
-                'party': 'Fancy',
-                'to go': 'Om me te nemen',
-                'hoofdgerecht-veg': 'Hoofdgerecht (veg)',
-                'lunch': 'Lichte lunch',
-                'dessert': 'Dessert & zoet',
-                'gebak': 'Gebak, koekjes & brood',
-                'kids': 'Kidsproof'
-            };
-            return labels[category] || category;
-        }
+    // Laad recepten uit Firebase
+    function loadRecipesFromFirebase() {
+        const container = document.getElementById('recipe-container');
+        container.innerHTML = '<p>Recepten aan het laden...</p>';
+        
+        db.collection("recipes").get()
+            .then((querySnapshot) => {
+                recipes = [];
+                querySnapshot.forEach((doc) => {
+                    const recipe = doc.data();
+                    recipe.id = doc.id; // Voeg het Firebase document ID toe
+                    recipes.push(recipe);
+                });
+                loadRecipes();
+            })
+            .catch((error) => {
+                console.error("Fout bij laden recepten: ", error);
+                container.innerHTML = '<p>Fout bij laden recepten. Probeer het later opnieuw.</p>';
+            });
+    }
 
-        function getDietLabel(diet) {
-            const labels = {
-                'vegan': 'Vegan',
-                'vegetarisch': 'Vegetarisch',
-                'vlees': 'Met vlees',
-                'vis': 'Met vis',
-                'suikervrij': 'Zonder toegevoegde suiker',
-                'low-carb': 'Low-carb'
-            };
-            return labels[diet] || diet;
+    // Laad recepten in de UI
+    function loadRecipes() {
+        const container = document.getElementById('recipe-container');
+        container.innerHTML = '';
+        
+        if (recipes.length === 0) {
+            container.innerHTML = '<p>Nog geen recepten toegevoegd. Voeg je eerste recept toe!</p>';
+            return;
         }
-    </script>
+        
+        recipes.forEach(recipe => {
+            const card = document.createElement('div');
+            card.className = 'recipe-card';
+            card.onclick = () => openRecipeModal(recipe.id);
+            
+            let html = '';
+            if (recipe.image) {
+                html += `<img src="${recipe.image}" alt="${recipe.name}">`;
+            }
+            html += `<h3 class="recipe-title">${recipe.name}</h3>`;
+            
+            // Labels voor categorie en dieet
+            html += `<div class="recipe-labels">`;
+            html += `<span class="label">${getCategoryLabel(recipe.category)}</span>`;
+            html += `<span class="label">${getDietLabel(recipe.diet)}</span>`;
+            html += `</div>`;
+            
+            card.innerHTML = html;
+            container.appendChild(card);
+        });
+    }
+
+    // Filter recepten op zoekterm, categorie en dieet
+    function filterRecipes() {
+        const searchTerm = document.getElementById('search').value.toLowerCase();
+        const category = document.getElementById('filter-category').value;
+        const diet = document.getElementById('filter-diet').value;
+        
+        const filtered = recipes.filter(recipe => {
+            const matchesSearch = recipe.name.toLowerCase().includes(searchTerm) || 
+                                recipe.ingredients.toLowerCase().includes(searchTerm) || 
+                                recipe.instructions.toLowerCase().includes(searchTerm);
+            const matchesCategory = !category || recipe.category === category;
+            const matchesDiet = !diet || recipe.diet === diet;
+            
+            return matchesSearch && matchesCategory && matchesDiet;
+        });
+        
+        displayFilteredRecipes(filtered);
+    }
+
+    // Toon gefilterde recepten
+    function displayFilteredRecipes(filteredRecipes) {
+        const container = document.getElementById('recipe-container');
+        container.innerHTML = '';
+        
+        if (filteredRecipes.length === 0) {
+            container.innerHTML = '<p>Geen recepten gevonden die aan je criteria voldoen.</p>';
+            return;
+        }
+        
+        filteredRecipes.forEach(recipe => {
+            const card = document.createElement('div');
+            card.className = 'recipe-card';
+            card.onclick = () => openRecipeModal(recipe.id);
+            
+            let html = '';
+            if (recipe.image) {
+                html += `<img src="${recipe.image}" alt="${recipe.name}">`;
+            }
+            html += `<h3 class="recipe-title">${recipe.name}</h3>`;
+            
+            // Labels voor categorie en dieet
+            html += `<div class="recipe-labels">`;
+            html += `<span class="label">${getCategoryLabel(recipe.category)}</span>`;
+            html += `<span class="label">${getDietLabel(recipe.diet)}</span>`;
+            html += `</div>`;
+            
+            card.innerHTML = html;
+            container.appendChild(card);
+        });
+    }
+
+    // Open recept in modal
+    function openRecipeModal(recipeId) {
+        const recipe = recipes.find(r => r.id === recipeId);
+        if (!recipe) return;
+        
+        document.getElementById('modal-title').textContent = recipe.name;
+        document.getElementById('modal-title').setAttribute('data-id', recipe.id);
+        
+        // Labels
+        const labelsContainer = document.getElementById('modal-labels');
+        labelsContainer.innerHTML = '';
+        
+        const categoryLabel = document.createElement('span');
+        categoryLabel.className = 'label';
+        categoryLabel.textContent = getCategoryLabel(recipe.category);
+        labelsContainer.appendChild(categoryLabel);
+        
+        const dietLabel = document.createElement('span');
+        dietLabel.className = 'label';
+        dietLabel.textContent = getDietLabel(recipe.diet);
+        labelsContainer.appendChild(dietLabel);
+        
+        // Afbeelding
+        const img = document.getElementById('modal-image');
+        if (recipe.image) {
+            img.src = recipe.image;
+            img.style.display = 'block';
+        } else {
+            img.style.display = 'none';
+        }
+        
+        // Ingrediënten
+        const ingredientsList = document.getElementById('modal-ingredients');
+        ingredientsList.innerHTML = '';
+        const ingredients = recipe.ingredients.split('\n');
+        ingredients.forEach(ing => {
+            if (ing.trim()) {
+                const li = document.createElement('li');
+                li.textContent = ing;
+                ingredientsList.appendChild(li);
+            }
+        });
+        
+        // Bereidingswijze
+        document.getElementById('modal-instructions').innerHTML = recipe.instructions.replace(/\n/g, '<br>');
+        
+        // Toon modal
+        document.getElementById('recipe-modal').style.display = 'flex';
+    }
+
+    // Sluit modal
+    function closeModal() {
+        document.getElementById('recipe-modal').style.display = 'none';
+    }
+
+    // Print recept
+    function printRecipe() {
+        const printContent = document.getElementById('recipe-print-content').innerHTML;
+        const originalContent = document.body.innerHTML;
+        
+        document.body.innerHTML = printContent;
+        window.print();
+        document.body.innerHTML = originalContent;
+        loadRecipes();
+        loadGroceryList();
+    }
+
+    // Print boodschappenlijst
+    function printGroceryList() {
+        window.print();
+    }
+
+    // Verwijder recept
+    function deleteRecipe() {
+        const recipeId = document.getElementById('modal-title').getAttribute('data-id');
+        
+        showAlert('Weet je zeker dat je dit recept wilt verwijderen?', true)
+            .then(confirmed => {
+                if (confirmed) {
+                    db.collection("recipes").doc(recipeId).delete()
+                        .then(() => {
+                            console.log("Recept succesvol verwijderd");
+                            loadRecipesFromFirebase();
+                            closeModal();
+                        })
+                        .catch((error) => {
+                            console.error("Fout bij verwijderen recept: ", error);
+                            showAlert('Fout bij verwijderen recept. Probeer het opnieuw.');
+                        });
+                }
+            });
+    }
+
+    // Bewerk recept
+    function editRecipe() {
+        const recipeId = document.getElementById('modal-title').getAttribute('data-id');
+        currentlyEditing = recipeId;
+        const recipe = recipes.find(r => r.id === recipeId);
+        
+        // Vul formulier in
+        document.getElementById('recipe-name').value = recipe.name;
+        document.getElementById('recipe-category').value = recipe.category;
+        document.querySelector(`input[name="diet"][value="${recipe.diet}"]`).checked = true;
+        document.getElementById('recipe-ingredients').value = recipe.ingredients;
+        document.getElementById('recipe-instructions').value = recipe.instructions;
+        document.getElementById('recipe-image').value = recipe.image || '';
+        
+        // Pas UI aan voor bewerken
+        document.getElementById('form-title').textContent = 'Recept bewerken';
+        document.getElementById('save-button').textContent = 'Wijzigingen opslaan';
+        document.getElementById('cancel-edit').classList.remove('hidden');
+        
+        closeModal();
+        openTab('add');
+    }
+
+    // Annuleer bewerken
+    function cancelEdit() {
+        currentlyEditing = null;
+        document.getElementById('recipe-form').reset();
+        document.getElementById('form-title').textContent = 'Nieuw recept toevoegen';
+        document.getElementById('save-button').textContent = 'Recept opslaan';
+        document.getElementById('cancel-edit').classList.add('hidden');
+        openTab('recipes');
+    }
+
+    // Sla recept op (nieuw of bewerkt)
+    function saveRecipe() {
+        const name = document.getElementById('recipe-name').value.trim();
+        const category = document.getElementById('recipe-category').value;
+        const diet = document.querySelector('input[name="diet"]:checked').value;
+        const ingredients = document.getElementById('recipe-ingredients').value.trim();
+        const instructions = document.getElementById('recipe-instructions').value.trim();
+        const image = document.getElementById('recipe-image').value.trim();
+        
+        if (!name || !ingredients || !instructions) {
+            showAlert('Vul alle verplichte velden in');
+            return;
+        }
+        
+        const recipeData = {
+            name,
+            category,
+            diet,
+            ingredients,
+            instructions,
+            image: image || null,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        if (currentlyEditing) {
+            // Bestaand recept bijwerken
+            db.collection("recipes").doc(currentlyEditing).update(recipeData)
+                .then(() => {
+                    console.log("Recept succesvol bijgewerkt");
+                    loadRecipesFromFirebase();
+                    cancelEdit();
+                })
+                .catch((error) => {
+                    console.error("Fout bij bijwerken recept: ", error);
+                    showAlert('Fout bij bijwerken recept. Probeer het opnieuw.');
+                });
+        } else {
+            // Nieuw recept toevoegen
+            db.collection("recipes").add(recipeData)
+                .then((docRef) => {
+                    console.log("Recept succesvol toegevoegd met ID: ", docRef.id);
+                    loadRecipesFromFirebase();
+                    cancelEdit();
+                })
+                .catch((error) => {
+                    console.error("Fout bij toevoegen recept: ", error);
+                    showAlert('Fout bij toevoegen recept. Probeer het opnieuw.');
+                });
+        }
+    }
+
+    // Voeg ingrediënten toe aan boodschappenlijst
+    function addToGroceryList() {
+        const recipeId = document.getElementById('modal-title').getAttribute('data-id');
+        const recipe = recipes.find(r => r.id === recipeId);
+        if (!recipe) return;
+        
+        const ingredients = recipe.ingredients.split('\n');
+        ingredients.forEach(ing => {
+            if (ing.trim() && !groceryList.includes(ing.trim())) {
+                groceryList.push(ing.trim());
+            }
+        });
+        
+        saveGroceryList();
+        loadGroceryList();
+        showAlert('Ingrediënten zijn toegevoegd aan je boodschappenlijst!');
+    }
+
+    // Voeg handmatig item toe aan boodschappenlijst
+    function addGroceryItem() {
+        const input = document.getElementById('new-grocery-item');
+        const item = input.value.trim();
+        
+        if (item && !groceryList.includes(item)) {
+            groceryList.push(item);
+            input.value = '';
+            saveGroceryList();
+            loadGroceryList();
+        }
+    }
+
+    // Laad boodschappenlijst in UI
+    function loadGroceryList() {
+        const list = document.getElementById('grocery-items');
+        list.innerHTML = '';
+        
+        groceryList.forEach((item, index) => {
+            const li = document.createElement('li');
+            li.innerHTML = `${item} <span onclick="removeGroceryItem(${index})" style="cursor:pointer;color:red;">&times;</span>`;
+            list.appendChild(li);
+        });
+    }
+
+    // Verwijder item van boodschappenlijst
+    function removeGroceryItem(index) {
+        groceryList.splice(index, 1);
+        saveGroceryList();
+        loadGroceryList();
+    }
+
+    // Maak boodschappenlijst leeg
+    function clearGroceryList() {
+        showAlert('Weet je zeker dat je de hele boodschappenlijst wilt leegmaken?', true)
+            .then(confirmed => {
+                if (confirmed) {
+                    groceryList = [];
+                    saveGroceryList();
+                    loadGroceryList();
+                }
+            });
+    }
+
+    // Genereer boodschappenlijst van geselecteerde recepten
+    function generateGroceryList() {
+        showAlert('Wil je ingrediënten van alle recepten toevoegen aan de boodschappenlijst?', true)
+            .then(confirmed => {
+                if (confirmed) {
+                    recipes.forEach(recipe => {
+                        const ingredients = recipe.ingredients.split('\n');
+                        ingredients.forEach(ing => {
+                            if (ing.trim() && !groceryList.includes(ing.trim())) {
+                                groceryList.push(ing.trim());
+                            }
+                        });
+                    });
+                    
+                    saveGroceryList();
+                    loadGroceryList();
+                }
+            });
+    }
+
+    // Sla boodschappenlijst op in localStorage
+    function saveGroceryList() {
+        localStorage.setItem('groceryList', JSON.stringify(groceryList));
+    }
+
+    // Laad boodschappenlijst uit localStorage
+    function loadSavedGroceryList() {
+        const saved = localStorage.getItem('groceryList');
+        if (saved) {
+            groceryList = JSON.parse(saved);
+            loadGroceryList();
+        }
+    }
+
+    // Helper functies voor labels
+    function getCategoryLabel(category) {
+        const labels = {
+            'aperitief': 'Aperitief & hapjes',
+            'cocktails': 'Cocktails & tapjes',
+            'BBQ': 'BBQ',
+            'salade & lichte lunch': 'Salade & lichte lunch',
+            'soep': 'Soep',
+            'pasta & pizza': 'Pasta & pizza',
+            'stoof': 'Curry, tajine & stoofschotels',
+            'wrap & burger': 'Wraps & burgers',
+            'party': 'Fancy',
+            'to go': 'Om mee te nemen',
+            'hoofdgerecht-veg': 'Hoofdgerecht (veg)',
+            'lunch': 'Lichte lunch',
+            'dessert': 'Dessert & zoet',
+            'gebak': 'Gebak, koekjes & brood',
+            'kids': 'Kidsproof'
+        };
+        return labels[category] || category;
+    }
+
+    function getDietLabel(diet) {
+        const labels = {
+            'vegan': 'Vegan',
+            'vegetarisch': 'Vegetarisch',
+            'vlees': 'Met vlees',
+            'vis': 'Met vis',
+            'suikervrij': 'Zonder toegevoegde suiker',
+            'low-carb': 'Low-carb'
+        };
+        return labels[diet] || diet;
+    }
+
+    // Toon alert
+    function showAlert(message, isConfirm = false) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('alert-overlay');
+            const messageEl = document.getElementById('alert-message');
+            const buttons = document.querySelector('.alert-buttons');
+            
+            messageEl.textContent = message;
+            
+            if (isConfirm) {
+                buttons.innerHTML = `
+                    <button onclick="hideAlert(true)">Ja</button>
+                    <button onclick="hideAlert(false)">Nee</button>
+                `;
+            } else {
+                buttons.innerHTML = '<button onclick="hideAlert(true)">OK</button>';
+            }
+            
+            overlay.style.display = 'flex';
+            
+            // Return een promise die resolved wanneer de alert wordt gesloten
+            window.hideAlert = (result) => {
+                overlay.style.display = 'none';
+                resolve(result);
+            };
+        });
+    }
+</script>
 </body>
 </html>
-
-
-
