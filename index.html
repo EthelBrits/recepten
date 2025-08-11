@@ -218,29 +218,62 @@
         margin-top: 25px;
         flex-wrap: wrap;
     }
-    @media print {
-        body * {
-            visibility: hidden;
-        }
-        #print-content, #print-content * {
-            visibility: visible;
-        }
-        #print-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 20px;
-        }
-        .no-print {
-            display: none;
-        }
-        .modal-content {
-            width: 100%;
-            max-width: 100%;
-            box-shadow: none;
-            border: none;
-        }
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #recipe-print-content, #recipe-print-content *,
+    #print-content, #print-content * {
+        visibility: visible;
+    }
+    #recipe-print-content, #print-content {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 20px;
+        background: white;
+        color: black;
+    }
+    .no-print {
+        display: none !important;
+    }
+    .modal-content {
+        width: 100%;
+        max-width: 100%;
+        box-shadow: none;
+        border: none;
+        position: static;
+    }
+    /* Alert popups */
+.alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+.alert-box {
+    background: #F1EDDD;
+    padding: 25px;
+    border-radius: 10px;
+    max-width: 400px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    border: 2px solid #647243;
+    text-align: center;
+}
+.alert-buttons {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+}
     }
 </style>
 </head>
@@ -833,5 +866,6 @@
     </script>
 </body>
 </html>
+
 
 
