@@ -249,9 +249,9 @@
         <h1>Mijn Recepten Collectie</h1>
         
         <div class="tabs">
-            <div class="tab active-tab" onclick="openTab('recipes')">Recepten</div>
-            <div class="tab" onclick="openTab('grocery')">Boodschappenlijst</div>
-            <div class="tab" onclick="openTab('add')">Recept toevoegen</div>
+<div class="tab active-tab" onclick="openTab('recipes', event)">Recepten</div>
+<div class="tab" onclick="openTab('grocery', event)">Boodschappenlijst</div>
+<div class="tab" onclick="openTab('add', event)">Recept toevoegen</div>
         </div>
         
         <div id="recipes" class="tab-content active">
@@ -438,7 +438,7 @@
         }
 
         // Tab navigatie
-        function openTab(tabName) {
+        function openTab(tabName, event) {
             const tabs = document.querySelectorAll('.tab-content');
             tabs.forEach(tab => tab.classList.remove('active'));
             
@@ -824,7 +824,7 @@
                 'vegan': 'Vegan',
                 'vegetarisch': 'Vegetarisch',
                 'vlees': 'Met vlees',
-                'vis': 'Met vis'
+                'vis': 'Met vis',
                 'suikervrij': 'Zonder toegevoegde suiker',
                 'low-carb': 'Low-carb'
             };
@@ -833,3 +833,4 @@
     </script>
 </body>
 </html>
+
